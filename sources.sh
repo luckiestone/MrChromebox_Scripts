@@ -3,7 +3,7 @@
 
 
 #define these here for easy updating
-export script_date="[2023-12-22]"
+export script_date="[2023-12-25]"
 
 #where the stuff is
 export util_source="https://hollywoo.de/MCB/files/util/"
@@ -177,6 +177,7 @@ export coreboot_uefi_drallion="coreboot_edk2-drallion-mrchromebox_20231222.rom"
 export coreboot_uefi_dratini="coreboot_edk2-dratini-mrchromebox_20231222.rom"
 export coreboot_uefi_duffy="coreboot_edk2-duffy-mrchromebox_20231222.rom"
 export coreboot_uefi_faffy="coreboot_edk2-faffy-mrchromebox_20231222.rom"
+export coreboot_uefi_genesis="coreboot_edk2-genesis-mrchromebox_20231222.rom"
 export coreboot_uefi_helios="coreboot_edk2-helios-mrchromebox_20231222.rom"
 export coreboot_uefi_jinlon="coreboot_edk2-jinlon-mrchromebox_20231222.rom"
 export coreboot_uefi_kaisa="coreboot_edk2-kaisa-mrchromebox_20231222.rom"
@@ -292,15 +293,15 @@ export coreboot_uefi_liara="coreboot_edk2-liara-mrchromebox_20231222.rom"
 export coreboot_uefi_treeya="coreboot_edk2-treeya-mrchromebox_20231222.rom"
 
 #Picasso
-export coreboot_uefi_berknip="coreboot_edk2-berknip-mrchromebox_20231223.rom"
-export coreboot_uefi_dirinboz="coreboot_edk2-dirinboz-mrchromebox_20231223.rom"
-export coreboot_uefi_ezkinil="coreboot_edk2-ezkinil-mrchromebox_20231223.rom"
-export coreboot_uefi_gumboz="coreboot_edk2-gumboz-mrchromebox_20231223.rom"
-export coreboot_uefi_jelboz360="coreboot_edk2-jelboz360-mrchromebox_20231223.rom"
-export coreboot_uefi_morphius="coreboot_edk2-morphius-mrchromebox_20231223.rom"
-export coreboot_uefi_morphius_tp="coreboot_edk2-morphius_tp-mrchromebox_20231223.rom"
-export coreboot_uefi_vilboz="coreboot_edk2-vilboz-mrchromebox_20231223.rom"
-export coreboot_uefi_woomax="coreboot_edk2-woomax-mrchromebox_20231223.rom"
+export coreboot_uefi_berknip="coreboot_edk2-berknip-mrchromebox_20231225.rom"
+export coreboot_uefi_dirinboz="coreboot_edk2-dirinboz-mrchromebox_20231225.rom"
+export coreboot_uefi_ezkinil="coreboot_edk2-ezkinil-mrchromebox_20231225.rom"
+export coreboot_uefi_gumboz="coreboot_edk2-gumboz-mrchromebox_20231225.rom"
+export coreboot_uefi_jelboz360="coreboot_edk2-jelboz360-mrchromebox_20231225.rom"
+export coreboot_uefi_morphius="coreboot_edk2-morphius-mrchromebox_20231225.rom"
+export coreboot_uefi_morphius_tp="coreboot_edk2-morphius_tp-mrchromebox_20231225.rom"
+export coreboot_uefi_vilboz="coreboot_edk2-vilboz-mrchromebox_20231225.rom"
+export coreboot_uefi_woomax="coreboot_edk2-woomax-mrchromebox_20231225.rom"
 
 #Cezanne
 export coreboot_uefi_dewatt="coreboot_edk2-dewatt-mrchromebox_20231222.rom"
