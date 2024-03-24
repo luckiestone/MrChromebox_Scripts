@@ -3,7 +3,7 @@
 
 
 #define these here for easy updating
-export script_date="[2024-03-09]"
+export script_date="[2024-03-21]"
 
 #where the stuff is
 export util_source="https://hollywoo.de/MCB/files/util/"
@@ -242,6 +242,7 @@ export coreboot_uefi_pasara="coreboot_edk2-pasara-mrchromebox_20240223.rom"
 export coreboot_uefi_pirette="coreboot_edk2-pirette-mrchromebox_20240223.rom"
 export coreboot_uefi_pirika="coreboot_edk2-pirika-mrchromebox_20240223.rom"
 export coreboot_uefi_sasuke="coreboot_edk2-sasuke-mrchromebox_20240223.rom"
+export coreboot_uefi_sasukette="coreboot_edk2-sasukette-mrchromebox_20240320.rom"
 export coreboot_uefi_storo="coreboot_edk2-storo-mrchromebox_20240223.rom"
 export coreboot_uefi_storo360="coreboot_edk2-storo360-mrchromebox_20240223.rom"
 
@@ -313,7 +314,7 @@ export coreboot_uefi_woomax="coreboot_edk2-woomax-mrchromebox_20240223.rom"
 
 #Cezanne
 export coreboot_uefi_dewatt="coreboot_edk2-dewatt-mrchromebox_20240223.rom"
-export coreboot_uefi_nipperkin="coreboot_edk2-nipperkin-mrchromebox_20240223.rom"
+export coreboot_uefi_nipperkin="coreboot_edk2-nipperkin-mrchromebox_20240321.rom"
 
 #Mendocino
 export coreboot_uefi_crystaldrift="coreboot_edk2-crystaldrift-mrchromebox_20240223.rom"
