@@ -3,7 +3,7 @@
 
 
 #define these here for easy updating
-export script_date="[2024-06-25]"
+export script_date="[2024-07-12]"
 
 #where the stuff is
 export util_source="https://hollywoo.de/MCB/files/util/"
@@ -13,19 +13,6 @@ export fullrom_source="https://hollywoo.de/MCB/files/firmware/full_rom/"
 export shellball_source="https://hollywoo.de/MCB/files/firmware/shellball/"
 export cbfs_source="https://hollywoo.de/MCB/files/firmware/cbfs/"
 export other_source="https://hollywoo.de/MCB/files/firmware/other/"
-
-#LE sources
-export LE_url_official="http://releases.libreelec.tv/"
-export LE_url=${LE_url_official}
-export chrx_url="https://chrx.org/go"
-
-#LE version
-export LE_version_base="LibreELEC-Generic.x86_64"
-export LE_version_stable="11.0.1"
-export LE_version_latest="11.0.1"
-
-#syslinux version
-export syslinux_version="syslinux-6.04-pre1"
 
 #UEFI Full ROMs
 #SNB/IVB
@@ -173,7 +160,7 @@ export coreboot_uefi_akemi="coreboot_edk2-akemi-mrchromebox_20240615.rom"
 export coreboot_uefi_ambassador="coreboot_edk2-ambassador-mrchromebox_20240615.rom"
 export coreboot_uefi_dooly="coreboot_edk2-dooly-mrchromebox_20240615.rom"
 export coreboot_uefi_dragonair="coreboot_edk2-dragonair-mrchromebox_20240615.rom"
-export coreboot_uefi_drallion="coreboot_edk2-drallion-mrchromebox_20240622.rom"
+export coreboot_uefi_drallion="coreboot_edk2-drallion-mrchromebox_20240706.rom"
 export coreboot_uefi_dratini="coreboot_edk2-dratini-mrchromebox_20240615.rom"
 export coreboot_uefi_duffy="coreboot_edk2-duffy-mrchromebox_20240615.rom"
 export coreboot_uefi_faffy="coreboot_edk2-faffy-mrchromebox_20240615.rom"
@@ -259,16 +246,16 @@ export coreboot_uefi_crota360="coreboot_edk2-crota360-mrchromebox_20240615.rom"
 export coreboot_uefi_felwinter="coreboot_edk2-felwinter-mrchromebox_20240615.rom"
 export coreboot_uefi_gimble="coreboot_edk2-gimble-mrchromebox_20240615.rom"
 export coreboot_uefi_kano="coreboot_edk2-kano-mrchromebox_20240615.rom"
-export coreboot_uefi_marasov="coreboot_edk2-marasov-mrchromebox_20240615.rom"
+export coreboot_uefi_marasov="coreboot_edk2-marasov-mrchromebox_20240712.rom"
 export coreboot_uefi_mithrax="coreboot_edk2-mithrax-mrchromebox_20240615.rom"
-export coreboot_uefi_omnigul="coreboot_edk2-omnigul-mrchromebox_20240615.rom"
+export coreboot_uefi_omnigul="coreboot_edk2-omnigul-mrchromebox_20240712.rom"
 export coreboot_uefi_osiris="coreboot_edk2-osiris-mrchromebox_20240615.rom"
 export coreboot_uefi_primus="coreboot_edk2-primus-mrchromebox_20240615.rom"
 export coreboot_uefi_redrix="coreboot_edk2-redrix-mrchromebox_20240615.rom"
 export coreboot_uefi_redrix4es="coreboot_edk2-redrix4es-mrchromebox_20240615.rom"
 export coreboot_uefi_taeko="coreboot_edk2-taeko-mrchromebox_20240615.rom"
 export coreboot_uefi_taniks="coreboot_edk2-taniks-mrchromebox_20240615.rom"
-export coreboot_uefi_vell="coreboot_edk2-vell-mrchromebox_20240615.rom"
+export coreboot_uefi_vell="coreboot_edk2-vell-mrchromebox_20240712.rom"
 export coreboot_uefi_volmar="coreboot_edk2-volmar-mrchromebox_20240615.rom"
 export coreboot_uefi_zavala="coreboot_edk2-zavala-mrchromebox_20240615.rom"
 #alderlake (brask)
@@ -331,11 +318,11 @@ export coreboot_uefi_dewatt="coreboot_edk2-dewatt-mrchromebox_20240615.rom"
 export coreboot_uefi_nipperkin="coreboot_edk2-nipperkin-mrchromebox_20240615.rom"
 
 #Mendocino
-export coreboot_uefi_crystaldrift="coreboot_edk2-crystaldrift-mrchromebox_20240415.rom"
-export coreboot_uefi_frostflow="coreboot_edk2-frostflow-mrchromebox_20240415.rom"
-export coreboot_uefi_markarth="coreboot_edk2-markarth-mrchromebox_20240415.rom"
-export coreboot_uefi_skyrim="coreboot_edk2-skyrim-mrchromebox_20240415.rom"
-export coreboot_uefi_whiterun="coreboot_edk2-whiterun-mrchromebox_20240415.rom"
+export coreboot_uefi_crystaldrift="coreboot_edk2-crystaldrift-mrchromebox_20240710.rom"
+export coreboot_uefi_frostflow="coreboot_edk2-frostflow-mrchromebox_20240710.rom"
+export coreboot_uefi_markarth="coreboot_edk2-markarth-mrchromebox_20240710.rom"
+export coreboot_uefi_skyrim="coreboot_edk2-skyrim-mrchromebox_20240710.rom"
+export coreboot_uefi_whiterun="coreboot_edk2-whiterun-mrchromebox_20240710.rom"
 
 
 #RW_LEGACY payloads
