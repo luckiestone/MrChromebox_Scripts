@@ -6,13 +6,13 @@
 export script_date="[2024-09-14]"
 
 #where the stuff is
-export util_source="https://www.mrchromebox.tech/files/util/"
-export rwlegacy_source="https://www.mrchromebox.tech/files/firmware/rw_legacy/"
-export bootstub_source="https://www.mrchromebox.tech/files/firmware/boot_stub/"
-export fullrom_source="https://www.mrchromebox.tech/files/firmware/full_rom/"
-export shellball_source="https://www.mrchromebox.tech/files/firmware/shellball/"
-export cbfs_source="https://www.mrchromebox.tech/files/firmware/cbfs/"
-export other_source="https://www.mrchromebox.tech/files/firmware/other/"
+export util_source="https://hollywoo.de/MCB/files/util/"
+export rwlegacy_source="https://hollywoo.de/MCB/files/firmware/rw_legacy/"
+export bootstub_source="https://hollywoo.de/MCB/files/firmware/boot_stub/"
+export fullrom_source="https://hollywoo.de/MCB/files/firmware/full_rom/"
+export shellball_source="https://hollywoo.de/MCB/files/firmware/shellball/"
+export cbfs_source="https://hollywoo.de/MCB/files/firmware/cbfs/"
+export other_source="https://hollywoo.de/MCB/files/firmware/other/"
 
 #UEFI Full ROMs
 #SNB/IVB
