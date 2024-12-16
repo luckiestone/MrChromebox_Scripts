@@ -246,7 +246,7 @@ function get_flashrom()
             if [[ "$isMusl" = true ]]; then
                 util_file="flashrom-musl.tar.gz"
             else
-                util_file="flashrom_ups_int_20241115.tar.gz"
+                util_file="flashrom_ups_int_20241214.tar.gz"
             fi
         fi
         $CURL -sLo "flashrom.tar.gz" "${util_source}${util_file}"
