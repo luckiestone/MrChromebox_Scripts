@@ -736,8 +736,9 @@ function restore_fw_from_recovery()
     done
     usb_device="${usb_devs[${usb_dev_index}-1]}"
     echo -e ""
+    echo_yellow "Using USB device: $usb_device"
     if ! extract_firmware_from_recovery_usb ${boardName,,} $usb_device ; then
-        exit_red "Error: failed to extract firmware from ChromeOS recovery USB"
+        exit_red "Error: failed to extract firmware for ${boardName^^} from this ChromeOS recovery USB"
         return 1
     fi
     mv coreboot-Google_* ${firmware_file}
@@ -756,11 +757,24 @@ function extract_firmware_from_recovery_usb()
     _firmware=chromeos-firmwareupdate-$_board
     _unpacked=$(mktemp -d)
 
+    if [[ "$1" = "" || "$2" = "" ]]; then
+        echo_red "Invalid or missing function parameters: [$@]"
+        return 1
+    fi
+
     echo_yellow "Extracting firmware from recovery USB"
     printf "cd /usr/sbin\ndump chromeos-firmwareupdate $_firmware\nquit" | debugfs $_debugfs >/dev/null 2>&1
 
+    if [ ! -f $_firmware ]; then
+        echo_red "Failed to copy file 'chromeos-firmwareupdate' from Recovery USB"
+        return 1
+    fi
+
     if ! sh $_firmware --unpack $_unpacked >/dev/null 2>&1; then
-        sh $_firmware --sb_extract $_unpacked >/dev/null 2>&1
+        if ! sh $_firmware --sb_extract $_unpacked >/dev/null 2>&1; then
+            echo_red "Failed to extract shellball from  'chromeos-firmwareupdate'"
+            return 1
+        fi
     fi
 
     if [ -d $_unpacked/models/ ]; then
@@ -768,18 +782,28 @@ function extract_firmware_from_recovery_usb()
         if [ "$_version" = "" ]; then
             _version=$(cat $_unpacked/VERSION | grep -m 1 -e Model.*$_board -A5 | grep "BIOS version:" | cut -f2 -d: | tr -d \ )
         fi
-          if ! _bios_image=$(grep "IMAGE_MAIN" $_unpacked/models/$_board/setvars.sh | cut -f2 -d\"); then
-                exit_red "Error: failed to find a firmware image for $_board on this recovery USB"; return 1
-               fi
+        if [ -f $_unpacked/models/$_board/setvars.sh ]; then
+            _bios_image=$(grep "IMAGE_MAIN" $_unpacked/models/$_board/setvars.sh | cut -f2 -d'"')
+        else
+            # special case for REEF, others?
+            _version=$(grep -m1 "host" "$_unpacked/manifest.json" | cut -f12 -d'"')
+            _bios_image=$(grep -m1 "image" "$_unpacked/manifest.json" | cut -f4 -d'"')
+        fi
     elif [ -f "$_unpacked/manifest.json" ]; then
-        _version=$(grep -m1 -A1 "$_board" "$_unpacked/manifest.json" | grep "host" | cut -f12 -d'"')
-        _bios_image=$(grep -m1 -A3 "$_board" "$_unpacked/manifest.json" | grep "image" | cut -f4 -d'"')
+        _version=$(grep -m1 -A4 "$_board\":" "$_unpacked/manifest.json" | grep -m1 "rw" | sed 's/.*\(rw.*\)/\1/' | sed 's/.*\("Google.*\)/\1/' | cut -f2 -d'"')
+        _bios_image=$(grep -m1 -A7 "$_board\":" "$_unpacked/manifest.json" | grep -m1 "image" | sed 's/.*"image": //' | cut -f2 -d'"')
     else
-        _version=$(cat $_unpacked/VERSION | grep BIOS\ version: | cut -f2 -d: | tr -d \ )
-        _bios_image=bios.bin
+        if [ -f $_unpacked/VERSION ]; then
+            _version=$(cat $_unpacked/VERSION | grep BIOS\ version: | cut -f2 -d: | tr -d \ )
+            _bios_image=bios.bin
+        else
+            echo_red "Recovery image missing VERSION file. Shellball directory Contents:"
+            ls -lart $_unpacked
+            return 1
+        fi
     fi
     if ! cp $_unpacked/$_bios_image coreboot-$_version.bin; then
-        exit_red "Error: failed to extract firmware image for $_board using this recovery USB"; return 1
+        return 1
     fi
     rm -rf "$_unpacked"
     rm $_firmware
