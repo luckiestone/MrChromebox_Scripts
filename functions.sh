@@ -89,17 +89,17 @@ cml=($(printf "%s " "${cml_boxes[@]}" "${cml_books[@]}"))
 jsl=('beadrix' 'beetley' 'blipper' 'bookem' 'boten' 'botenflex' 'boxy' 'bugzzy' 'cret' 'cret360' \
      'dexi' 'drawcia' 'drawlat' 'drawman' 'drawper' 'galith' 'galith360' 'gallop' 'galnat' 'galnat360' \
      'galtic' 'galtic360' 'kracko' 'kracko360' 'landia' 'landrid' 'lantis' 'madoo' 'magister' \
-     'maglet' 'maglia' 'maglith' 'magma' 'magneto' 'magolor' 'magpie' 'metaknight' 'pasara' \
-     'peezer' 'pirette' 'pirika' 'sasuke' 'sasukette' 'storo' 'storo360' 'taranza')
+     'maglet' 'maglia' 'maglith' 'magma' 'magneto' 'magolor' 'magpie' 'metaknight' 'palutena' \
+     'pasara' 'peezer' 'pirette' 'pirika' 'sasuke' 'sasukette' 'storo' 'storo360' 'taranza')
 tgl=('chronicler' 'collis' 'copano' 'delbin' 'drobit' 'eldrid' 'elemi' 'lillipup' 'lindar' \
      'voema' 'volet' 'volta' 'voxel')
 adl=('anahera' 'brya' 'banshee' 'kano' 'crota' 'crota360' 'felwinter' 'gimble' 'marasov' 'mithrax' \
      'omnigul' 'osiris' 'primus' 'redrix' 'redrix4es' 'taeko' 'taniks' 'vell' 'volmar' 'zavala' \
     'constitution' 'gladios' 'kinox' 'kuldax' 'lisbon' 'moli')
-adl_n=('anraggar' 'anraggar360' 'craask' 'craaskana' 'craaskbowl' 'craaskino' 'craaskvin' 'craasneto' \
+adl_n=('anraggar' 'anraggar360' 'craask' 'craaskana' 'craaskbowl' 'craaskino' 'craaskov' 'craaskvin' 'craasneto' \
      'joxer' 'joxero' 'nereid' 'nirwin' 'nivviks' 'pujjo1e' 'pujjo' 'pujjoflex' 'pujjoteen' 'pujjoteen15w' \
      'quandiso' 'quandiso360' 'uldren' 'uldren360' 'xivu' 'xivu360' 'yahiko' 'yavijo' 'yaviks' \
-     'yavikso' 'yavilla' 'yavillay')
+     'yavikso' 'yavilla' 'yavilly')
 
 str=('aleena' 'barla' 'careena' 'grunt' 'kasumi' 'liara' 'treeya' 'treeya360')
 pco=('berknip' 'dirinboz' 'ezkinil' 'gumboz' 'jelboz360' 'morphius' 'vilboz' 'woomax')
@@ -692,6 +692,7 @@ case "${_hwid}" in
     CRAASKANA*)             _x='ADN|Acer Chromebook 311' ;;
     CRAASKBOWL*)            _x='ADN|Acer Chromebook Spin 511' ;;
     CRAASKINO*)             _x='ADN|Acer Chromebook 315' ;;
+    CRAASKOV*)              _x='ADN|Acer Chromebook 312' ;;
     CRAASKVIN*)             _x='ADN|Acer Chromebook 511' ;;
     CRAASNETO-KYVC*)        _x='ADN|Acer Chromebook Plus 514' ;;
     CRAASNETO*)             _x='ADN|Acer Chromebook 314' ;;
@@ -871,6 +872,8 @@ case "${_hwid}" in
     OSIRIS*)                _x='ADL|Acer Chromebook 516 GE [CBG516-1H]' ;;
     PAINE*)                 _x='BDW|Acer Chromebook 11 (C740)' ; device="auron_paine";;
     PANTHEON*)              _x='KBL|Lenovo Yoga Chromebook C630'  ; device="nami";;
+    PALUTENA-YVYF*)         _x='JSL|Acer Chromebook 314' ;;
+    PALUTENA-TQFG*)         _x='JSL|Gateway Chromebook 314' ;;
     PANTHER*)               _x='HSW|ASUS Chromebox CN60' ;;
     PARROT*)                _x='SNB|Acer C7/C710 Chromebook' ;;
     PASARA*)                _x='JSL|Gateway Chromebook 15' ;;
