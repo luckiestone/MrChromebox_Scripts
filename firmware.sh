@@ -118,7 +118,8 @@ MrChromebox does not provide any support for running Windows."
 
     #flash updated RW_LEGACY firmware
     echo_yellow "Installing RW_LEGACY firmware"
-    if ! ${flashromcmd} -w -i RW_LEGACY:${rwlegacy_file} -o /tmp/flashrom.log > /dev/null 2>&1; then
+    [[ "$isChromeOS" = false ]] && FMAP="--fmap"
+    if ! ${flashromcmd} -w $FMAP -i RW_LEGACY:${rwlegacy_file} ${noverify} -o /tmp/flashrom.log > /dev/null 2>&1; then
         cat /tmp/flashrom.log
         echo_red "An error occurred flashing the RW_LEGACY firmware."
     else
@@ -346,12 +347,6 @@ and you need to recover using an external EEPROM programmer. [Y/n] "
     rm -f /tmp/flashrom.log
 
     echo_yellow "Installing Full ROM firmware (may take up to 90s)"
-    #check if flashrom supports --noverify-all
-    if ${flashromcmd} -h | grep -q "noverify-all" ; then
-        noverify="-N"
-    else
-        noverify="-n"
-    fi
     #check if flashrom supports logging to file
     if ${flashromcmd} -V -o /dev/null > /dev/null 2>&1; then
         output_params=">/dev/null 2>&1 -o /tmp/flashrom.log"
@@ -654,7 +649,7 @@ other than the latest UEFI Full ROM firmware release."
     #flash stock firmware
     echo_yellow "Restoring stock firmware"
     # only verify part of flash we write
-    if ! ${flashromcmd} ${flashrom_params} -N -w "${firmware_file}" -o /tmp/flashrom.log > /dev/null 2>&1; then
+    if ! ${flashromcmd} ${flashrom_params} ${noverify} -w "${firmware_file}" -o /tmp/flashrom.log > /dev/null 2>&1; then
         cat /tmp/flashrom.log
         exit_red "An error occurred restoring the stock firmware. DO NOT REBOOT!"; return 1
     fi
@@ -932,13 +927,15 @@ You can always override the default using [CTRL+D] or
     if ! ${flashromcmd} --wp-disable > /dev/null 2>&1; then
         exit_red "Error disabling software write-protect; unable to set GBB flags."; return 1
     fi
-    if ! ${flashromcmd} -r -i GBB:/tmp/gbb.temp > /dev/null 2>&1; then
+    [[ "$isChromeOS" = false ]] && FMAP="--fmap"
+    if ! ${flashromcmd} -r $FMAP -i GBB:/tmp/gbb.temp > /dev/null 2>&1; then
         exit_red "\nError reading firmware (non-stock?); unable to set boot options."; return 1
     fi
     if ! ${gbbutilitycmd} --set --flags="${_flags}" /tmp/gbb.temp > /dev/null; then
         exit_red "\nError setting boot options."; return 1
     fi
-    if ! ${flashromcmd} -w -i GBB:/tmp/gbb.temp > /dev/null 2>&1; then
+    if ! ${flashromcmd} -w $FMAP -i GBB:/tmp/gbb.temp ${noverify} -o /tmp/flashrom.log > /dev/null 2>&1; then
+        cat /tmp/flashrom.log
         exit_red "\nError writing back firmware; unable to set boot options."; return 1
     fi
 
@@ -987,13 +984,15 @@ Proceed at your own risk."
         if ! ${flashromcmd} --wp-disable > /dev/null 2>&1; then
             exit_red "Error disabling software write-protect; unable to set HWID."; return 1
         fi
-        if ! ${flashromcmd} -r -i GBB:/tmp/gbb.temp > /dev/null 2>&1; then
+	[[ "$isChromeOS" = false ]] && FMAP="--fmap"
+        if ! ${flashromcmd} -r $FMAP -i GBB:/tmp/gbb.temp > /dev/null 2>&1; then
             exit_red "\nError reading firmware (non-stock?); unable to set HWID."; return 1
         fi
         if ! ${gbbutilitycmd} --set --hwid="${hwid}" /tmp/gbb.temp > /dev/null 2>&1; then
             exit_red "\nError setting HWID."; return 1
         fi
-        if ! ${flashromcmd} -w -i GBB:/tmp/gbb.temp > /dev/null 2>&1; then
+        if ! ${flashromcmd} -w $FMAP -i GBB:/tmp/gbb.temp ${noverify} -o /tmp/flashrom.log > /dev/null 2>&1; then
+            cat /tmp/flashrom.log
             exit_red "\nError writing back firmware; unable to set HWID."; return 1
         fi
 
