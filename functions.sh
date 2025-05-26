@@ -84,7 +84,7 @@ glk=('ampton' 'apel' 'apele' 'bloog' 'blooglet' 'blooguard' 'blorb' 'bluebird' '
     'meep' 'mimrock' 'nospike' 'octopus' 'orbatrix' 'phaser' 'phaser360' \
     'phaser360s' 'sparky' 'sparky360' 'vorticon' 'vortininja')
 whl=('arcada' 'sarien')
-cml_boxes=('ambassador' 'dooly' 'duffy' 'faffy' 'genesis' 'kaisa' 'noibat' 'puff' 'wyvern')
+cml_boxes=('ambassador' 'dooly' 'duffy' 'faffy' 'genesis' 'kaisa' 'moonbuggy' 'noibat' 'puff' 'scout' 'wyvern')
 cml_books=('akemi' 'dragonair' 'drallion' 'dratini' 'hatch' 'helios' 'jinlon' 'kindred' 'kled' \
            'kohaku' 'nightfury')
 cml=($(printf "%s " "${cml_boxes[@]}" "${cml_books[@]}"))
@@ -98,7 +98,7 @@ tgl=('chronicler' 'collis' 'copano' 'delbin' 'drobit' 'eldrid' 'elemi' 'lillipup
 adl=('anahera' 'aurash' 'brya' 'banshee' 'constitution' 'crota' 'crota360' 'dochi' 'felwinter' 'gimble' \
      'gladios' 'intrepid' 'kano' 'kinox' 'kuldax' 'lisbon' 'marasov' 'mithrax' 'moli' 'omnigul' 'omniknight' \
      'osiris' 'primus' 'redrix' 'redrix4es' 'taeko' 'taniks' 'tarlo' 'vell' 'volmar' 'zavala')
-adl_2=('banshee' 'omnigul')
+adl_2=('aurash' 'banshee' 'constitution' 'gladios' 'intrepid' 'kinox' 'kuldax' 'lisbon' 'marasov' 'moli' 'omnigul')
 adl_n=('anraggar' 'anraggar360' 'craask' 'craaskana' 'craaskbowl' 'craaskino' 'craaskov' 'craaskvin' 'craasneto' \
      'joxer' 'joxero' 'nereid' 'nirwin' 'nivviks' 'pujjo1e' 'pujjo' 'pujjoflex' 'pujjoteen' 'pujjoteen15w' \
      'quandiso' 'quandiso360' 'uldren' 'uldren360' 'xivu' 'xivu360' 'yahiko' 'yavijo' 'yaviks' \
@@ -858,6 +858,7 @@ case "${_hwid}" in
     METAKNIGHT*)            _x='JSL|NEC Chromebook Y3' ;;
     MITHRAX-ISVS*)          _x='ADL|Asus Chromebook Vibe CX34 Flip (CX3401)' ;;
     MITHRAX*)               _x='ADL|ASUS Chromebook CX34 Flip (CX3401)' ;;
+    MOONBUGGY*)             _x='CML|Avocor Series One Board 65' ;;
     LUMPY*)                 _x='SNB|Samsung Chromebook Series 5 550' ;;
     MARASOV*)               _x='ADL|ASUS Chromebook CX34' ;;
     MCCLOUD*)               _x='HSW|Acer Chromebox CXI' ;;
@@ -917,6 +918,7 @@ case "${_hwid}" in
                             _x='ADN|Lenovo Ideapad Slim 3i Chromebook' ; device="pujjoteen15w" ;;
     PUJJO-DCCV*)            _x='ADN|Lenovo Flex 3i Chromebook 12"' ;;
     PUJJO-KTLR*)            _x='ADN|Lenovo 500e Yoga Chromebook Gen 4' ;;
+    PUJJO1E*)               _x='ADN|Lenovo 100e Chromebook Gen 4 (Intel)' ;;
     PUJJO*)                 _x='ADN|Lenovo 500e Yoga/Flex 3i Chromebook' ;;
     PYRO*)                  _x='APL|Lenovo Thinkpad 11e/Yoga Chromebook (G4)' ;;
     QUANDISO360*)           _x='ADN|CTL Chromebook NL73T' ;;
@@ -949,6 +951,7 @@ case "${_hwid}" in
     SARIEN*)                _x='WHL|Dell Latitude 5400' ;;
     SASUKETTE*)             _x='JSL|Samsung Galaxy Chromebook Go 11' ;;
     SASUKE*)                _x='JSL|Samsung Galaxy Chromebook Go' ;;
+    SCOUT*)                 _x='CML|Avocor Series One Desk 27' ;;
     SCREEBO*)               _x='MTL|ASUS ExpertBook CX54 Chromebook Plus (CX5403)' ;;
     SENTRY*)                _x='SKL|Lenovo Thinkpad 13 Chromebook' ;;
     SETZER*)                _x='BSW|HP Chromebook 11 G5' ;;
