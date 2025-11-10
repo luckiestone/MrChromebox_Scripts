@@ -237,70 +237,10 @@ OS; ${currOS} will no longer be bootable. See https://mrchromebox.tech/#faq"
 		[[ "$REPLY" = "y" || "$REPLY" = "Y" ]] || return
 	fi
 
-	# PCO boot device notice
-	if [[ "$isPCO" = true && ! -d /sys/firmware/efi ]]; then
-		echo_yellow "
-NOTE: Booting from eMMC on AMD Picasso-based devices does not currently work --
-only NVMe, SD and USB. If you have a device with eMMC storage you will not be
-able to boot from it after installing the UEFI Full ROM firmware."
-		REPLY=""
-		read -rep "Press Y to continue or any other key to abort. "
-		[[ "$REPLY" = "y" || "$REPLY" = "Y" ]] || return
-	fi
-
 	#determine correct file / URL
 	firmware_source=${fullrom_source}
 	eval coreboot_file="$`echo "coreboot_uefi_${device}"`"
 
-	#rammus special case (upgrade from older UEFI firmware)
-	if [ "$device" = "rammus" ]; then
-		echo -e ""
-		echo_yellow "Unable to determine Chromebook model"
-		echo -e "Because of your current firmware, I'm unable to
-determine the exact mode of your Chromebook.  Are you using
-an Asus C425 (LEONA) or Asus C433/C434 (SHYVANA)?
-"
-		REPLY=""
-		while [[ "$REPLY" != "L" && "$REPLY" != "l" && "$REPLY" != "S" && "$REPLY" != "s"  ]]
-		do
-			read -rep "Enter 'L' for LEONA, 'S' for SHYVANA: "
-			if [[ "$REPLY" = "S" || "$REPLY" = "s" ]]; then
-				coreboot_file=${coreboot_uefi_shyvana}
-			else
-				coreboot_file=${coreboot_uefi_leona}
-			fi
-		done
-	fi
-
-	#coral special case (variant not correctly identified)
-	if [ "$device" = "coral" ]; then
-		echo -e ""
-		echo_yellow "Unable to determine correct Chromebook model"
-		echo -e "Because of your current firmware, I'm unable to determine the exact mode of your Chromebook.
-Please select the number for the correct option from the list below:"
-		coral_boards=(
-		"ASTRONAUT (Acer Chromebook 11 [C732])"
-		"BABYMEGA (Asus Chromebook C223NA)"
-		"BABYTIGER (Asus Chromebook C523NA)"
-		"BLACKTIP (CTL Chromebook NL7/NL7T)"
-		"BLUE (Acer Chromebook 15 [CB315])"
-		"BRUCE (Acer Chromebook Spin 15 [CP315])"
-		"EPAULETTE (Acer Chromebook 514)"
-		"LAVA (Acer Chromebook Spin 11 [CP311])"
-		"NASHER (Dell Chromebook 11 5190)"
-		"NASHER360 (Dell Chromebook 11 5190 2-in-1)"
-		"RABBID (Asus Chromebook C423)"
-		"ROBO (Lenovo 100e Chromebook)"
-		"ROBO360 (Lenovo 500e Chromebook)"
-		"SANTA (Acer Chromebook 11 [CB311-8H])"
-		"WHITETIP (CTL Chromebook J41/J41T)"
-		)
-		select board in "${coral_boards[@]}"; do
-			board=$(echo ${board,,} | cut -f1 -d ' ')
-			eval coreboot_file=$`echo "coreboot_uefi_${board}"`
-			break;
-		done
-	fi
 	# ensure we have a file to flash
 	if [[ "$coreboot_file" = "" ]]; then
 		exit_red "The script does not currently have a firmware file for your device (${device^^}); cannot continue."; return 1
@@ -354,6 +294,10 @@ and you need to recover using an external EEPROM programmer. [Y/n]
 	fi
 
 	#persist device HWID?
+	if [ ! -f /tmp/hwid.txt ] || [ ! -s /tmp/hwid.txt ]; then
+		echo_yellow "Creating device HWID from board name"
+		echo "${boardName^^}" > /tmp/hwid.txt
+	fi
 	if [ -f /tmp/hwid.txt ]; then
 		echo_yellow "Persisting device HWID"
 		${cbfstoolcmd} "${coreboot_file}" add -n hwid -f /tmp/hwid.txt -t raw > /dev/null 2>&1
@@ -1411,6 +1355,97 @@ Proceed at your own risk."
 	read -rep "Press [Enter] to return to the main menu."
 }
 
+##########################
+# Set HWID for UEFI ROM #
+##########################
+function set_hwid_uefi()
+{
+	# set HWID using cbfstool for UEFI firmware
+	# ensure hardware write protect disabled
+	[[ "$wpEnabled" = true ]] && { exit_red "\nHardware write-protect enabled, cannot set HWID."; return 1; }
+
+	echo_green "\nSet Hardware ID (HWID) for UEFI Firmware"
+
+	# Get current HWID if present
+	if ${cbfstoolcmd} /tmp/bios.bin extract -n hwid -f /tmp/hwid_current.txt >/dev/null 2>&1; then
+		_current_hwid=$(cat /tmp/hwid_current.txt 2>/dev/null)
+		if [[ -n "$_current_hwid" ]]; then
+			echo_yellow "Current HWID is: $_current_hwid"
+		fi
+		rm -f /tmp/hwid_current.txt
+	else
+		echo_yellow "No current HWID found in firmware"
+	fi
+
+	echo_yellow "
+WARNING: Changing HWID is not normally needed, and if you mess it up,
+it could result in the wrong firmware being flashed, which will almost
+certainly result in your device being bricked.
+Proceed at your own risk."
+
+	read -rep "Really change your HWID? [y/N] " confirm
+	[[ "$confirm" = "Y" || "$confirm" = "y" ]] || return
+
+	read -rep "This is serious. Are you really sure? [y/N] " confirm
+	[[ "$confirm" = "Y" || "$confirm" = "y" ]] || return
+
+	local hwid=""
+	read -rep "Enter a new HWID: " hwid
+	if [[ -z "$hwid" ]]; then
+		exit_red "No HWID entered; operation cancelled."; return 1
+	fi
+
+	echo -e ""
+	read -rep "Confirm changing HWID to '$hwid' [y/N] " confirm
+	if [[ "$confirm" = "Y" || "$confirm" = "y" ]]; then
+		echo_yellow "\nReading current firmware..."
+		# Read current firmware to ensure we have the latest
+		if ! ${flashromcmd} --fmap -i COREBOOT -r /tmp/bios_mod.bin > /tmp/flashrom.log 2>&1; then
+			cat /tmp/flashrom.log
+			exit_red "\nError reading firmware; unable to set HWID."; return 1
+		fi
+
+		echo_yellow "Modifying firmware..."
+		# Remove old HWID if it exists
+		${cbfstoolcmd} /tmp/bios_mod.bin remove -n hwid > /dev/null 2>&1
+
+		# Create new HWID file
+		echo -n "$hwid" > /tmp/hwid_new.txt
+
+		# Add new HWID to CBFS
+		if ! ${cbfstoolcmd} /tmp/bios_mod.bin add -n hwid -f /tmp/hwid_new.txt -t raw > /dev/null 2>&1; then
+			exit_red "\nError adding HWID to firmware."; return 1
+		fi
+
+		# Disable software write-protect
+		if ! ${flashromcmd} --wp-disable > /dev/null 2>&1 && [[ "$swWp" = "enabled" ]]; then
+			exit_red "Error disabling software write-protect; unable to set HWID."; return 1
+		fi
+
+		# Clear SW WP range
+		if ! ${flashromcmd} --wp-range 0 0 > /dev/null 2>&1; then
+			if ! ${flashromcmd} --wp-range 0,0 > /dev/null 2>&1 && [[ "$swWp" = "enabled" ]]; then
+				exit_red "Error clearing software write-protect range; unable to set HWID."; return 1
+			fi
+		fi
+
+		# Write firmware back
+		echo_yellow "Writing firmware with new HWID..."
+		if ! ${flashromcmd} --fmap -i COREBOOT -w /tmp/bios_mod.bin -N > /tmp/flashrom.log 2>&1; then
+			if [ -f /tmp/flashrom.log ]; then
+				cat /tmp/flashrom.log
+			fi
+			exit_red "\nError writing firmware; HWID not set. DO NOT REBOOT!"; return 1
+		fi
+
+		# Cleanup
+		rm -f /tmp/hwid_new.txt /tmp/bios_mod.bin
+
+		echo_green "Hardware ID successfully set. Reboot for the change to take effect."
+	fi
+	read -rep "Press [Enter] to return to the main menu."
+}
+
 ###############
 # Clear NVRAM #
 ###############
@@ -1634,6 +1669,9 @@ function uefi_menu() {
 		echo -e "${MENU}**${WP_TEXT}     ${NUMBER} 3)${MENU} Backup Current Firmware ${NORMAL}"
 		echo -e "${MENU}**${WP_TEXT} [WP]${NUMBER} 4)${MENU} Flash Custom Firmware ${NORMAL}"
 	fi
+	if [[ "$isUEFI" = true ]]; then
+		echo -e "${MENU}**${WP_TEXT}     ${NUMBER} 5)${MENU} Set Hardware ID (HWID) ${NORMAL}"
+	fi
 	if [[ "${device^^}" = "EVE" ]]; then
 		echo -e "${MENU}**${WP_TEXT} [WP]${NUMBER} D)${MENU} Downgrade Touchpad Firmware ${NORMAL}"
 		echo -e "${MENU}**${WP_TEXT} [WP]${NUMBER} U)${MENU} Upgrade Touchpad Firmware ${NORMAL}"
@@ -1673,6 +1711,12 @@ function uefi_menu() {
 
 	4)	if [[ "$unlockMenu" = true || ("$isUEFI" = true && "$isUnsupported" = false) ]]; then
 			flash_custom_firmware
+		fi
+		uefi_menu
+		;;
+
+	5)	if [[ "$isUEFI" = true ]]; then
+			set_hwid_uefi
 		fi
 		uefi_menu
 		;;
