@@ -3,7 +3,7 @@
 
 
 #define these here for easy updating
-export script_date="[2025-11-12]"
+export script_date="[2025-11-19]"
 
 #where the stuff is
 export util_source="https://hollywoo.de/MCB/files/util/"
@@ -90,7 +90,7 @@ export coreboot_uefi_eve="coreboot_edk2-eve-mrchromebox_20251108.rom"
 export coreboot_uefi_fizz="coreboot_edk2-fizz-mrchromebox_20251108.rom"
 export coreboot_uefi_karma="coreboot_edk2-karma-mrchromebox_20251108.rom"
 export coreboot_uefi_nami="coreboot_edk2-nami-mrchromebox_20251108.rom"
-export coreboot_uefi_nautilus="coreboot_edk2-nautilus-mrchromebox_20251108.rom"
+export coreboot_uefi_nautilus="coreboot_edk2-nautilus-mrchromebox_20251117.rom"
 export coreboot_uefi_nocturne="coreboot_edk2-nocturne-mrchromebox_20251108.rom"
 export coreboot_uefi_rammus="coreboot_edk2-rammus-mrchromebox_20251108.rom"
 export coreboot_uefi_soraka="coreboot_edk2-soraka-mrchromebox_20251108.rom"
@@ -283,7 +283,7 @@ export seabios_kbl_18="seabios-kbl_18-mrchromebox_20250227.bin"
 export rwl_altfw_apl="rwl_altfw-kbl_apl-mrchromebox_20251031.bin"
 export rwl_altfw_kbl="rwl_altfw-kbl_apl-mrchromebox_20251031.bin"
 export rwl_altfw_kbl_18="rwl_altfw-kbl_18-mrchromebox_20251031.bin"
-export rwl_altfw_whl="rwl_altfw-whl-mrchromebox_20251031.bin"
+export rwl_altfw_whl="rwl_altfw-whl-mrchromebox_20251119.bin"
 export rwl_altfw_cml="rwl_altfw-cml-mrchromebox_20251031.bin"
 export rwl_altfw_drallion="rwl_altfw-drallion-mrchromebox_20251031.bin"
 export rwl_altfw_glk="rwl_altfw-glk-mrchromebox_20251031.bin"
