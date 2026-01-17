@@ -1094,6 +1094,10 @@ Connect the USB/SD device which contains the backed-up stock firmware and press 
 
 function restore_fw_from_recovery()
 {
+	if ! command -v 7z >/dev/null 2>&1; then
+		exit_red "Error: 7z (7zip) is required but not found. Please install it via the 7zip package.";
+		return 1
+	fi
 	echo -e "\nConnect a USB which contains a ChromeOS Recovery Image"
 	read -rep "and press [Enter] to continue. "
 	list_usb_devices || { exit_red "No USB devices available to read from."; return 1; }
@@ -1633,13 +1637,15 @@ function reset_cr50_nvram() {
 				
 				if [[ -n "$fwid_major" ]] && [[ "$fwid_major" -lt 12953 ]] 2>/dev/null; then
 					# v0 secdata_kernel (< 12953)
+					echo_yellow "Using v0 secdata_kernel format (FWID $fwid_major.$fwid_minor)"
 					if ! ${tpmccmd} write 0x1008 02 4c 57 52 47 01 00 01 00 00 00 00 55; then
 						echo_red "Error: Failed to reset CR50 kernel version data."
 						return 1
 					fi
 				else
 					# v1 secdata kernel (>= 12953)
-					if ! ${tpmccmd} write 0x1008 10 28 0c 00 01 00 01 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00; then
+					echo_yellow "Using v1 secdata_kernel format (FWID $fwid_major.$fwid_minor)"
+					if ! ${tpmccmd} write 0x1008 10 28 0c 00 01 00 01 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00; then
 						echo_red "Error: Failed to reset CR50 kernel version data."
 						return 1
 					fi
