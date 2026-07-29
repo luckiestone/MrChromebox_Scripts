@@ -13,7 +13,7 @@ import json
 import requests
 import argparse
 from pathlib import Path
-from typing import Dict, List, Set, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 from collections import defaultdict
 from dataclasses import dataclass
 from urllib.parse import urlparse
@@ -60,12 +60,17 @@ class ChromeOSRecoveryUpdater:
         'volteer': 'TGL', 'winky': 'BYT', 'wizpig': 'BSW', 'wolf': 'HSW',
         'zako': 'HSW', 'zork': 'PCO'
     }
+
+    # Chronological platform order (matches device-db.sh)
+    PLATFORM_ORDER = [
+        'SNB', 'IVB', 'HSW', 'BDW', 'BYT', 'BSW', 'SKL', 'APL', 'KBL', 'GLK',
+        'WHL', 'CML', 'JSL', 'TGL', 'ADL', 'ADN', 'MTL', 'STR', 'PCO', 'CZN', 'MDN',
+    ]
     
     def __init__(self, target_images: Optional[List[str]] = None):
         """Initialize the updater with optional target images filter"""
         self.target_images = set(target_images) if target_images else set(self.PLATFORM_MAP.keys())
         self.device_entries: List[DeviceEntry] = []
-        self.firmware_entries: Set[str] = set()
         
     def validate_config_url(self, url: str) -> None:
         """Validate the configuration URL format"""
@@ -89,6 +94,13 @@ class ChromeOSRecoveryUpdater:
     def get_platform(self, image_name: str) -> str:
         """Get platform code for ChromeOS image"""
         return self.PLATFORM_MAP.get(image_name.lower(), 'UNK')
+
+    def platform_sort_key(self, platform: str) -> Tuple[int, str]:
+        """Sort key for chronological platform ordering (matches device-db.sh)"""
+        try:
+            return (self.PLATFORM_ORDER.index(platform), platform)
+        except ValueError:
+            return (len(self.PLATFORM_ORDER), platform)
     
     def clean_device_name(self, name: str) -> str:
         """Clean and normalize device name"""
@@ -187,7 +199,7 @@ class ChromeOSRecoveryUpdater:
         # Determine flags
         flags = ""
         if 'hromebox' in clean_name or 'hromebase' in clean_name:
-            flags = "isCbox,hasLAN"
+            flags = "isCbox"
         
         # Create device entry
         device_entry = DeviceEntry(
@@ -200,12 +212,6 @@ class ChromeOSRecoveryUpdater:
         )
         
         self.device_entries.append(device_entry)
-        
-        # Add firmware entry
-        from datetime import date
-        today = date.today().strftime("%Y%m%d")
-        firmware_entry = f"export coreboot_uefi_{device}=\"coreboot_edk2-{device}-mrchromebox_{today}.rom\""
-        self.firmware_entries.add(firmware_entry)
     
     def optimize_hwids(self) -> None:
         """Optimize HWIDs by removing hyphenated suffixes for unique entries"""
@@ -282,8 +288,8 @@ class ChromeOSRecoveryUpdater:
                 for entry in self.device_entries:
                     platform_groups[entry.platform].append(entry)
                 
-                # Sort platforms alphabetically
-                for platform in sorted(platform_groups.keys()):
+                # Sort platforms chronologically (matches device-db.sh)
+                for platform in sorted(platform_groups.keys(), key=self.platform_sort_key):
                     entries = sorted(platform_groups[platform], key=lambda x: x.hwid)
                     
                     # Add platform comment header
@@ -298,11 +304,18 @@ class ChromeOSRecoveryUpdater:
             
             f.write(")\n")
         
-        # Generate firmware list
+        # Expected Full ROM filenames for new devices
         fw_file = output_dir / "fw_list.txt"
+        today = __import__('datetime').date.today().strftime("%Y%m%d")
         with open(fw_file, 'w') as f:
-            for firmware_entry in sorted(self.firmware_entries):
-                f.write(f"{firmware_entry}\n")
+            seen = set()
+            for entry in sorted(self.device_entries, key=lambda x: x.device):
+                if entry.device in seen:
+                    continue
+                seen.add(entry.device)
+                f.write(
+                    f"coreboot_edk2-{entry.device}-mrchromebox_{today}.rom\n"
+                )
         
         print(f"Generated {hwid_file}")
         print(f"Generated {fw_file}")
@@ -355,7 +368,6 @@ class ChromeOSRecoveryUpdater:
         self.generate_output_files(group_by_platform=group_by_platform)
         
         print(f"Processed {len(self.device_entries)} device entries")
-        print(f"Generated {len(self.firmware_entries)} firmware entries")
 
 
 def main():

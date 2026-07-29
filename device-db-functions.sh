@@ -72,41 +72,6 @@ get_board_name() {
 	echo "${hwid^^}" | cut -f1 -d '-' | cut -f1 -d ' '
 }
 
-# Function to check if device is EOL (based on CPU platform)
-is_eol_device() {
-	local hwid="$1"
-	local cpu_type=$(get_cpu_type "$hwid")
-	
-	# EOL platforms from functions.sh
-	case "$cpu_type" in
-		SNB|IVB|HSW|BDW|BYT|BSW|SKL)
-			return 0
-			;;
-		*)
-			return 1
-			;;
-	esac
-}
-
-# Function to check if device has UEFI support
-has_uefi_support() {
-	local hwid="$1"
-	
-	# If it has noUEFI flag, no UEFI
-	if has_flag "$hwid" "noUEFI"; then
-		return 1
-	fi
-	
-	# Otherwise, has UEFI
-	return 0
-}
-
-# Function to check if device has LAN (implied by hasLAN)
-has_lan() {
-	local hwid="$1"
-	has_flag "$hwid" "hasLAN"
-}
-
 # Function to get CPU type
 get_cpu_type() {
 	local hwid="$1"
@@ -135,7 +100,7 @@ get_cpu_type_name() {
 		TGL) echo "Intel TigerLake" ;;
 		ADL) echo "Intel AlderLake/RaptorLake-U/P" ;;
 		ADN) echo "Intel AlderLake-N" ;;
-		TWN) echo "Intel Twinlake" ;;
+		TWL) echo "Intel Twinlake" ;;
 		MTL) echo "Intel Meteorlake" ;;
 		STR) echo "AMD StoneyRidge" ;;
 		PCO) echo "AMD Picasso" ;;
@@ -143,19 +108,6 @@ get_cpu_type_name() {
 		MDN) echo "AMD Mendocino" ;;
 		*)   echo "(unrecognized)" ;;
 	esac
-}
-
-# Function to get device info in original format for compatibility
-get_device_info_compat() {
-	local hwid="$1"
-	local description=$(get_device_description "$hwid")
-	local cpu_type=$(get_cpu_type "$hwid")
-	local device_override=$(get_device_override "$hwid")
-	local flags=$(get_flags "$hwid")
-	
-	# Build compatibility format: boardName|description|CPU|device override|flags|
-	local board_name=$(get_board_name "$hwid")
-	echo "${board_name}|${description}|${cpu_type}|${device_override}|${flags}|"
 }
 
 # Function to replace the large case statement in functions.sh
@@ -224,10 +176,10 @@ set_device_flags_from_database() {
 	export isAdl=false
 	export isAdl_fixed_rwl=false
 	export isAdlN=false
+	export isTwl=false
 	export isMtl=false
 	export isUnsupported=false
 	export hasUEFIoption=true
-	export hasLAN=false
 	export hasCR50=false
 	export kbl_rwl18=false
 	export isEOL=false
@@ -336,6 +288,11 @@ set_device_flags_from_database() {
 			hasUEFIoption=true
 			hasCR50=true
 			;;
+		TWL)
+			isTwl=true
+			hasUEFIoption=true
+			hasCR50=true
+			;;
 		MTL)
 			isMtl=true
 			hasUEFIoption=true
@@ -348,8 +305,6 @@ set_device_flags_from_database() {
 	esac
 
 	has_flag "$hwid" "noUEFI" && hasUEFIoption=false
-	
-	has_lan "$hwid" && hasLAN=true
 
 	return 0
 }

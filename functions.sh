@@ -69,10 +69,252 @@ function exit_red() {
 	read -rep "Press [Enter] to return to the main menu."
 }
 
+# Show a menu error and return failure to the caller
+function fail_menu() {
+	exit_red "$@"
+	return 1
+}
+
+# Disable software WP and clear the WP range before flashing.
+# Returns 0 on success, 1 if --wp-disable failed, 2 if --wp-range failed.
+# strict: require disable and range clear to succeed (GBB partial writes)
+# flash: only fail if swWp was enabled when disable/range clear fails
+function clear_software_wp() {
+	local mode="${1:-flash}"
+
+	if [[ "$mode" = strict ]]; then
+		run_quiet ${flashromcmd} --wp-disable || return 1
+	else
+		if ! run_quiet ${flashromcmd} --wp-disable && [[ "$swWp" = "enabled" ]]; then
+			return 1
+		fi
+	fi
+
+	if run_quiet ${flashromcmd} --wp-range 0 0; then
+		return 0
+	fi
+
+	if [[ "$mode" = strict ]]; then
+		run_quiet ${flashromcmd} --wp-range 0,0 || return 2
+	else
+		if ! run_quiet ${flashromcmd} --wp-range 0,0 && [[ "$swWp" = "enabled" ]]; then
+			return 2
+		fi
+	fi
+}
+
+# Require clear_software_wp success; show fail_menu on disable/range errors.
+function require_software_wp_clear() {
+	local mode="$1"
+	local disable_msg="$2"
+	local range_msg="$3"
+	local _rc=0
+
+	clear_software_wp "$mode" || _rc=$?
+	case $_rc in
+		1) fail_menu "$disable_msg" || return 1 ;;
+		2) fail_menu "$range_msg" || return 1 ;;
+	esac
+}
+
 # Print error message and exit script
 function die() {
 	echo_red "$@"
 	exit 1
+}
+
+########################################
+# Full ROM firmware resolution         #
+########################################
+
+function fullrom_build_file() {
+	local dev="$1"
+	local date="$2"
+
+	[[ -n "$dev" && -n "$date" ]] || return 1
+	echo "coreboot_edk2-${dev}-mrchromebox_${date}.rom"
+}
+
+# Sets _fullrom_slot_{date,folder,label,is_hotfix}
+function fullrom_slot_info() {
+	local slot="$1"
+	local flat=false
+
+	_fullrom_slot_date=""
+	_fullrom_slot_folder=""
+	_fullrom_slot_label=""
+	_fullrom_slot_is_hotfix=false
+
+	[[ "${fullrom_layout:-versioned}" = "flat" ]] && flat=true
+
+	if [[ "$slot" = "latest" ]]; then
+		if fullrom_has_hotfix; then
+			_fullrom_slot_date="${FW_HOTFIX[$device]}"
+			_fullrom_slot_folder=""
+			_fullrom_slot_label=$(fullrom_format_display_date "${_fullrom_slot_date}")
+			_fullrom_slot_is_hotfix=true
+		else
+			_fullrom_slot_date="${release_current_date}"
+			[[ -n "$release_current_version" ]] || return 1
+			if [[ "$flat" = true ]]; then
+				_fullrom_slot_folder=""
+			else
+				_fullrom_slot_folder="MrChromebox-${release_current_version}"
+			fi
+			_fullrom_slot_label="MrChromebox-${release_current_version}"
+		fi
+	elif [[ "$slot" = "previous" ]]; then
+		_fullrom_slot_date="${release_previous_date}"
+		[[ -n "$release_previous_version" ]] || return 1
+		if [[ "$flat" = true ]]; then
+			_fullrom_slot_folder=""
+		else
+			_fullrom_slot_folder="MrChromebox-${release_previous_version}"
+		fi
+		_fullrom_slot_label="MrChromebox-${release_previous_version}"
+	else
+		return 1
+	fi
+
+	[[ -n "$_fullrom_slot_date" ]] || return 1
+	if [[ "$flat" != true && "$_fullrom_slot_is_hotfix" != true ]]; then
+		[[ -n "$_fullrom_slot_folder" ]] || return 1
+	fi
+	return 0
+}
+
+function fullrom_cdn_base_for_slot() {
+	local slot="$1"
+
+	fullrom_slot_info "$slot" || return 1
+	if [[ "${fullrom_layout:-versioned}" = "flat" ]]; then
+		echo "${fullrom_source}"
+	elif [[ -n "$_fullrom_slot_folder" ]]; then
+		echo "${fullrom_source}${_fullrom_slot_folder}/"
+	else
+		echo "${fullrom_source}"
+	fi
+}
+
+function fullrom_http_available() {
+	local url="$1"
+	local curl_cmd="${CURL:-curl}"
+
+	[[ -n "$url" ]] || return 1
+	${curl_cmd} -sfI -L "${url}" 2>/dev/null | grep -qiE '^HTTP/[0-9.]+ 200'
+}
+
+function fullrom_firmware_available() {
+	local slot="$1"
+	local file=""
+	local base=""
+	local url=""
+
+	file=$(fullrom_resolve_slot "$slot") || return 1
+	base=$(fullrom_cdn_base_for_slot "$slot") || return 1
+	url="${base}${file}"
+
+	fullrom_http_available "$url" && return 0
+
+	# Fall back to flat CDN root if versioned path is missing
+	if [[ "${fullrom_layout:-versioned}" = "versioned" && "$base" != "${fullrom_source}" ]]; then
+		fullrom_http_available "${fullrom_source}${file}"
+	else
+		return 1
+	fi
+}
+
+function download_fullrom_release() {
+	local slot="$1"
+	local file=""
+	local base=""
+
+	file=$(fullrom_resolve_slot "$slot") || return 1
+	base=$(fullrom_cdn_base_for_slot "$slot") || return 1
+
+	fullrom_files=(
+		"${file}"
+		"${file}.sha1"
+	)
+	if download_files fullrom_files "${base}"; then
+		return 0
+	fi
+
+	if [[ "${fullrom_layout:-versioned}" = "versioned" && "$base" != "${fullrom_source}" ]]; then
+		download_files fullrom_files "${fullrom_source}" && return 0
+	fi
+	return 1
+}
+
+function fullrom_file_date() {
+	local file="$1"
+	echo "$file" | grep -o 'mrchromebox_[0-9]\{8\}' | cut -d_ -f2
+}
+
+function fullrom_format_display_date() {
+	local ymd="$1"
+	echo "${ymd:4:2}/${ymd:6:2}/${ymd:0:4}"
+}
+
+function fullrom_installed_yyyymmdd() {
+	local mm dd yy
+	[[ -n "$fwDate" ]] || return 1
+	mm=$(echo "$fwDate" | cut -f1 -d'/')
+	dd=$(echo "$fwDate" | cut -f2 -d'/')
+	yy=$(echo "$fwDate" | cut -f3 -d'/')
+	printf "%04d%02d%02d" "$((10#$yy))" "$((10#$mm))" "$((10#$dd))"
+}
+
+function fullrom_has_hotfix() {
+	[[ -n "${FW_HOTFIX[$device]:-}" ]]
+}
+
+function fullrom_resolve_slot() {
+	local slot="$1"
+
+	fullrom_slot_info "$slot" || return 1
+	fullrom_build_file "$device" "${_fullrom_slot_date}"
+}
+
+function fullrom_slot_label() {
+	local slot="$1"
+
+	fullrom_slot_info "$slot" || return 1
+	echo "${_fullrom_slot_label}"
+}
+
+# e.g. MrChromebox-2603.2 (05/17/2026)
+function fullrom_slot_detail() {
+	local slot="$1"
+
+	fullrom_slot_info "$slot" || return 1
+	if [[ "$_fullrom_slot_is_hotfix" = true ]]; then
+		echo "${_fullrom_slot_label}"
+	else
+		echo "${_fullrom_slot_label} ($(fullrom_format_display_date "${_fullrom_slot_date}"))"
+	fi
+}
+
+function fullrom_date_newer_than_installed() {
+	local target_ymd="$1"
+	local installed_ymd
+
+	[[ -n "$target_ymd" ]] || return 1
+	[[ "$firmwareType" = *"pending"* ]] && return 1
+	installed_ymd=$(fullrom_installed_yyyymmdd) || return 1
+	[[ "$target_ymd" -gt "$installed_ymd" ]]
+}
+
+function fullrom_can_rollback() {
+	local installed
+
+	[[ -n "$release_previous_date" ]] || return 1
+	if [[ "${fullrom_layout:-versioned}" != "flat" ]]; then
+		[[ -n "$release_previous_version" ]] || return 1
+	fi
+	[[ -n "$device" ]] || return 1
+	installed=$(fullrom_installed_yyyymmdd) || return 0
+	[[ "$installed" != "$release_previous_date" ]]
 }
 
 ########################################
@@ -237,6 +479,51 @@ function list_usb_devices() {
 	echo -e ""
 }
 
+# Prompt for a USB block device. Sets usb_device; optionally mounts at /tmp/usb.
+# mount_mode: rw, ro (default), or none (select only).
+# Returns 0 on success, 1 if no devices, 2 if mount failed.
+function select_usb_device() {
+	local connect_prompt="$1"
+	local select_prompt="$2"
+	local mount_mode="${3:-ro}"
+
+	if [[ -n "$connect_prompt" ]]; then
+		echo -e ""
+		read -rep "$connect_prompt "
+	fi
+	if ! list_usb_devices; then
+		return 1
+	fi
+	usb_dev_index=""
+	while [[ -z "$usb_dev_index" || $usb_dev_index -lt 1 || $usb_dev_index -gt $usb_device_count ]]; do
+		read -rep "$select_prompt " usb_dev_index
+		if [[ -z "$usb_dev_index" || $usb_dev_index -lt 1 || $usb_dev_index -gt $usb_device_count ]]; then
+			echo -e "Error: Invalid option selected; enter a number from the list above."
+		fi
+	done
+	usb_device="${usb_devs[${usb_dev_index}-1]}"
+	if [[ "$mount_mode" = none ]]; then
+		return 0
+	fi
+	run_quiet mkdir /tmp/usb
+	if [[ "$mount_mode" = rw ]]; then
+		if ! run_quiet mount -o rw "${usb_device}" /tmp/usb; then
+			if ! run_quiet mount -o rw "${usb_device}1" /tmp/usb; then
+				run_quiet rmdir /tmp/usb
+				return 2
+			fi
+		fi
+	else
+		if ! run_quiet mount "${usb_device}" /tmp/usb; then
+			if ! run_quiet mount "${usb_device}1" /tmp/usb; then
+				run_quiet rmdir /tmp/usb
+				return 2
+			fi
+		fi
+	fi
+	return 0
+}
+
 ########################################
 # Tool Management Functions            #
 ########################################
@@ -322,7 +609,7 @@ function get_gbb_utility() {
 				echo_red "Error downloading gbb_utility; cannot proceed."
 				return 1
 			fi
-			if ! tar -zxf gbb_utility.tar.gz; then
+			if ! tar -zxf gbb_utility.tar.gz --no-same-owner; then
 				echo_red "Error extracting gbb_utility; cannot proceed."
 				return 1
 			fi
@@ -344,7 +631,7 @@ function get_ectool() {
 				echo_red "Error downloading ectool; cannot proceed."
 				return 1
 			fi
-			if ! tar -zxf ectool.tar.gz; then
+			if ! tar -zxf ectool.tar.gz --no-same-owner; then
 				echo_red "Error extracting ectool; cannot proceed."
 				return 1
 			fi
@@ -367,7 +654,7 @@ function get_tpmc() {
 				echo_red "Error downloading tpmc; cannot proceed."
 				return 1
 			fi
-			if ! tar -zxf tpmc.tar.gz; then
+			if ! tar -zxf tpmc.tar.gz --no-same-owner; then
 				echo_red "Error extracting tpmc; cannot proceed."
 				return 1
 			fi
@@ -441,11 +728,17 @@ you must use a VT2 terminal as directed per https://mrchromebox.tech/#fwscript"
 		echo_red "Required package 'md5sum' not found; cannot continue.  Please install and try again."
 		return 1
 	fi
+	if ! which sha1sum > /dev/null 2>&1; then
+		echo_red "Required package 'sha1sum' not found; cannot continue.  Please install and try again."
+		return 1
+	fi
 	
 	#get device name
-	device=$(dmidecode -s system-product-name | tr '[:upper:]' '[:lower:]' | sed 's/ /_/g' | awk 'NR==1{print $1}')
+	if ! device=$(dmidecode -s system-product-name | tr '[:upper:]' '[:lower:]' | sed 's/ /_/g' | awk 'NR==1{print $1}'); then
+		device=""
+	fi
 	diagnostic_report_set dmidecode.device "$device"
-	if [[ $? -ne 0 || "${device}" = "" ]]; then
+	if [[ -z "$device" ]]; then
 		echo_red "Unable to determine Chromebox/book model; cannot continue."
 		echo_red "It's likely you are using an unsupported ARM-based ChromeOS device,
 only x86_64-based devices are supported at this time."
@@ -483,13 +776,13 @@ Run this from a Linux Live USB instead."
 			part_pfx=""
 		fi
 		part_num="${part_pfx}12"
-		export boot_mounted=$(mount | grep "${rootdev}""${part_num}")
-		if [ "${boot_mounted}" = "" ]; then
+		export boot_mounted=false
+		if mount | grep -q "${rootdev}""${part_num}"; then
+			boot_mounted=true
+		else
 			#mount boot
 			run_quiet mkdir /tmp/boot
 			run_quiet mount "$(rootdev -d -s)""${part_num}" /tmp/boot && boot_mounted=true
-		else
-			boot_mounted=true
 		fi
 		#set cmds
 		#check if we need to use a newer flashrom which supports output to log file (-o)
@@ -529,27 +822,38 @@ Run this from a Linux Live USB instead."
 
 	#get device firmware info
 	echo -e "\nGetting device/system info..."
-	flashrom_read_ok=false
-	if grep -q -i Intel /proc/cpuinfo; then
-		#try reading only BIOS region
-		if ${flashromcmd} --ifd -i bios -r /tmp/bios.bin > /tmp/flashrom.log 2>&1; then
-			flashrom_params="--ifd -i bios"
-			flashrom_read_ok=true
-		else
-			#read entire firmware
-			if ${flashromcmd} -r /tmp/bios.bin > /tmp/flashrom.log 2>&1; then
-				flashrom_read_ok=true
-			fi
+	flashrom_params=""
+	flashrom_rc=1
+	flashrom_has_ifd=false
+	isIntel=false
+	grep -q -i Intel /proc/cpuinfo && isIntel=true
+	${flashromcmd} -h 2>&1 | grep -q -- '--ifd' && flashrom_has_ifd=true
+
+	# Intel: prefer IFD BIOS-region access (FD/ME are typically host-locked).
+	# Bundled Linux flashrom always supports --ifd; older ChromeOS flashrom may not.
+	if [[ "$isIntel" = true && "$flashrom_has_ifd" = true ]]; then
+		${flashromcmd} --ifd -i bios -r /tmp/bios.bin > /tmp/flashrom.log 2>&1
+		flashrom_rc=$?
+		_log_command "$flashrom_rc" "${flashromcmd} --ifd -i bios -r /tmp/bios.bin" /tmp/flashrom.log
+		[[ "$flashrom_rc" -eq 0 ]] && flashrom_params="--ifd -i bios"
+	fi
+	# Non-IFD read: non-Intel, or ChromeOS when IFD is unavailable/failed.
+	# Non-ChromeOS Intel must succeed via IFD (no fallback).
+	# Intel stock ChromeOS uses FMAP region SI_BIOS; fall back to full-chip.
+	if [[ "$flashrom_rc" -ne 0 ]] && { [[ "$isIntel" != true ]] || [[ "$isChromeOS" = true || "$isChromiumOS" = true ]]; }; then
+		if [[ "$isIntel" = true ]]; then
+			${flashromcmd} -i SI_BIOS -r /tmp/bios.bin > /tmp/flashrom.log 2>&1
+			flashrom_rc=$?
+			_log_command "$flashrom_rc" "${flashromcmd} -i SI_BIOS -r /tmp/bios.bin" /tmp/flashrom.log
 		fi
-	else
-		#read entire firmware
-		if ${flashromcmd} -r /tmp/bios.bin > /tmp/flashrom.log 2>&1; then
-			flashrom_read_ok=true
+		if [[ "$flashrom_rc" -ne 0 ]]; then
+			${flashromcmd} -r /tmp/bios.bin > /tmp/flashrom.log 2>&1
+			flashrom_rc=$?
+			_log_command "$flashrom_rc" "${flashromcmd} -r /tmp/bios.bin" /tmp/flashrom.log
 		fi
 	fi
-	_log_command "$?" "${flashromcmd} firmware read" /tmp/flashrom.log
-
-	if [ "$flashrom_read_ok" != true ]; then
+	
+	if [[ "$flashrom_rc" -ne 0 ]]; then
 		echo_red "\nFlashrom is unable to read current firmware; cannot continue:"
 		if [ -f /tmp/flashrom.log ]; then
 			cat /tmp/flashrom.log
@@ -559,12 +863,45 @@ Run this from a Linux Live USB instead."
 			echo_red "Session log: ${MRCBX_LOG}"
 		fi
 		echo_red "You may need to add 'iomem=relaxed' to your kernel parameters,
-or trying running from a Live USB with a more permissive kernel (eg, Ubuntu 23.04+)."
+or try running from a Live USB with a more permissive kernel (eg, Ubuntu 23.04+)."
 		echo_red "If you have UEFI SecureBoot enabled, you need to disable it to run 
 the script/update your firmware."
 		return 1;
 	fi
-	
+
+	# Sanity-check the read image has a usable CBFS/FMAP
+	# Default region is COREBOOT; older Chromebooks use BOOT_STUB instead
+	${cbfstoolcmd} /tmp/bios.bin print > /tmp/cbfs-print.log 2>&1
+	cbfs_rc=$?
+	_log_command "$cbfs_rc" "${cbfstoolcmd} /tmp/bios.bin print" /tmp/cbfs-print.log
+	if [[ "$cbfs_rc" -ne 0 ]]; then
+		${cbfstoolcmd} /tmp/bios.bin print -r BOOT_STUB > /tmp/cbfs-print.log 2>&1
+		cbfs_rc=$?
+		_log_command "$cbfs_rc" "${cbfstoolcmd} /tmp/bios.bin print -r BOOT_STUB" /tmp/cbfs-print.log
+	fi
+	if [[ "$cbfs_rc" -ne 0 ]]; then
+		echo_red "\nFirmware read succeeded but the image is not a valid CBFS/FMAP; cannot continue:"
+		if [ -f /tmp/cbfs-print.log ]; then
+			cat /tmp/cbfs-print.log
+			echo ""
+		fi
+		if [[ -n "$MRCBX_LOG" ]]; then
+			echo_red "Session log: ${MRCBX_LOG}"
+		fi
+		echo_red "The SPI flash contents could not be read correctly.
+You may need to add 'iomem=relaxed' to your kernel parameters,
+or try running from a Live USB with a more permissive kernel (eg, Ubuntu 23.04+)."
+		return 1
+	fi
+
+	# FMAP layout used for region checks / flashrom -i fallbacks
+	${cbfstoolcmd} /tmp/bios.bin layout -w > /tmp/layout 2>/dev/null
+	# Without IFD (old ChromeOS flashrom): stock images expose SI_BIOS, but
+	# UEFI/MrChromebox images use BIOS — set write params from the target name.
+	if [[ "$isIntel" = true && -z "$flashrom_params" ]] && grep -q "'SI_BIOS'" /tmp/layout 2>/dev/null; then
+		flashrom_params="-i BIOS"
+	fi
+	diagnostic_report_set flashrom_params "${flashrom_params:-"(none)"}"
 	# firmware date/version
 	fwVer=$(dmidecode -s bios-version)
 	fwVer="${fwVer#"${fwVer%%[![:space:]]*}"}"  # Remove leading whitespace
@@ -582,7 +919,7 @@ the script/update your firmware."
 		isStock=true
 		firmwareType="Stock ChromeOS"
 		# check BOOT_STUB
-		if grep "BOOT_STUB" /tmp/layout >/dev/null 2>&1; then
+		if grep -q "'BOOT_STUB'" /tmp/layout 2>/dev/null; then
 			if ! ${cbfstoolcmd} /tmp/bios.bin print -r BOOT_STUB 2>/dev/null | grep -e "vboot" >/dev/null 2>&1 ; then
 				[[ "${device^^}" != "LINK" ]] && firmwareType="Stock w/modified BOOT_STUB"
 			fi
@@ -627,33 +964,20 @@ the script/update your firmware."
 		# prompt user to disable swWP and reboot
 		echo_yellow "\nWARNING: your device currently has software write-protect enabled.\n
 If you plan to flash the UEFI firmware, you must first disable it and reboot before flashing.
-Would you like to disable sofware WP and reboot your device?"
+Would you like to disable software WP and reboot your device?"
 		read -rep "Press Y (then enter) to disable software WP and reboot, or just press enter to skip and continue. "
 		# Validate user input
 		if [[ "$REPLY" =~ ^[Yy]$ ]]; then
 			echo -e "\nDisabling software WP..."
-			if ! run_quiet ${flashromcmd} --wp-disable; then
-				exit_red "\nError disabling software write-protect -- hardware WP is still enabled."
-				return 1
-			fi
-			echo -e "\nClearing the WP range(s)..."
-			if ! run_quiet ${flashromcmd} --wp-range 0 0; then
-				# use new command format as of commit 99b9550
-				if ! run_quiet ${flashromcmd} --wp-range 0,0; then
-					#re-run to output error
-					${flashromcmd} --wp-range 0,0
-					exit_red "\nError clearing software write-protect range."
-					return 1
-				fi
-			fi
+			require_software_wp_clear strict \
+				"\nError disabling software write-protect -- hardware WP is still enabled." \
+				"\nError clearing software write-protect range." || return
 			echo_green "\nSoftware WP disabled, rebooting in 5s"
 			reboot
 			# ensure we don't show the main menu while the system processes the reboot signal
 			die
 		fi
 	fi
-
-	diagnostic_report_set firmwareType "$firmwareType"
 	
 	# Get/set HWID, boardname, device
 	if echo "$firmwareType" | grep -q -e "Stock"; then
