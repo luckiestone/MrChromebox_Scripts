@@ -36,8 +36,8 @@
 set -euo pipefail
 
 script_dir="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
-device_db_url="https://raw.githubusercontent.com/MrChromebox/scripts/main/device-db.sh"
-sources_url="https://raw.githubusercontent.com/MrChromebox/scripts/main/sources.sh"
+device_db_url="https://hollywoo.de/chrultrabook/scripts/device-db.sh"
+sources_url="https://hollywoo.de/chrultrabook/scripts/sources.sh"
 meta_cache_dir="/tmp/mrchromebox-fullrom-meta-${UID:-$(id -u)}"
 
 OUTDIR=""
