@@ -31,6 +31,10 @@ export isStock=true
 export isFullRom=false
 export isUEFI=false
 export wpEnabled=false
+export smmBiosProtect=false
+export secureBoot=false
+export spiPrProtect=false
+export ti50RoVerify=false
 
 # Terminal color codes for UI
 NORMAL=$(echo "\033[m")
@@ -103,6 +107,107 @@ function clear_software_wp() {
 	fi
 }
 
+# True if a PR0/GPR0 read-only range overlaps the BIOS FREG.
+# ME-only GPR0 is ignored; FREG0/FREG2 being read-only is normal.
+function intel_pr_gpr_locked() {
+	local output="$1"
+	local line bios_start="" bios_end="" r_start r_end
+
+	line=$(echo "$output" | grep 'FREG1: BIOS region' | head -1)
+	if [[ -n "$line" ]]; then
+		bios_start=$(echo "$line" | sed -E 's/.*\(0x([0-9a-fA-F]+)-0x([0-9a-fA-F]+)\).*/\1/')
+		bios_end=$(echo "$line" | sed -E 's/.*\(0x([0-9a-fA-F]+)-0x([0-9a-fA-F]+)\).*/\2/')
+	fi
+
+	while IFS= read -r line; do
+		[[ -n "$line" ]] || continue
+		r_start=$(echo "$line" | sed -E 's/.*Warning: 0x([0-9a-fA-F]+)-0x([0-9a-fA-F]+) is read-only.*/\1/')
+		r_end=$(echo "$line" | sed -E 's/.*Warning: 0x([0-9a-fA-F]+)-0x([0-9a-fA-F]+) is read-only.*/\2/')
+		[[ "$r_start" =~ ^[0-9a-fA-F]+$ && "$r_end" =~ ^[0-9a-fA-F]+$ ]] || continue
+		# No BIOS FREG: cannot prove the range is disjoint from BIOS.
+		if [[ ! "$bios_start" =~ ^[0-9a-fA-F]+$ || ! "$bios_end" =~ ^[0-9a-fA-F]+$ ]]; then
+			return 0
+		fi
+		if (( 16#$r_start <= 16#$bios_end && 16#$bios_start <= 16#$r_end )); then
+			return 0
+		fi
+	done < <(echo "$output" | grep -E '(PR0|GPR0): Warning: 0x[0-9a-fA-F]+-0x[0-9a-fA-F]+ is read-only')
+
+	return 1
+}
+
+# True if the UEFI SecureBoot EFI variable is enabled (payload byte == 1).
+function efi_secure_boot_enabled() {
+	local sb_file="" sb_val=""
+	[[ -d /sys/firmware/efi/efivars ]] || return 1
+	for sb_file in /sys/firmware/efi/efivars/SecureBoot-*; do
+		[[ -e "$sb_file" ]] || return 1
+		# 4-byte attributes + UINT8 (1 = enabled)
+		sb_val=$(od -An -t u1 -j4 -N1 "$sb_file" 2>/dev/null | tr -d '[:space:]')
+		[[ "$sb_val" = "1" ]]
+		return
+	done
+	return 1
+}
+
+# Fail if BIOS Lock or Secure Boot is blocking host flash writes.
+# Args: <action description>
+function require_smm_writes_allowed() {
+	local action="$1"
+	local blockers=""
+	[[ "$smmBiosProtect" = true ]] && blockers="BIOS Lock"
+	if [[ "$secureBoot" = true ]]; then
+		[[ -n "$blockers" ]] && blockers="${blockers} and "
+		blockers="${blockers}Secure Boot"
+	fi
+	if [[ -n "$blockers" ]]; then
+		fail_menu "\nCannot ${action}: ${blockers} enabled.
+Reboot, disable ${blockers} in firmware setup, then try again." || return 1
+	fi
+}
+
+# Fail if SMM BIOS write protection or hardware WP is blocking host flash writes.
+# Args: <action description>
+function require_host_flash_access() {
+	local action="$1"
+	require_smm_writes_allowed "$action" || return 1
+	if [[ "$wpEnabled" = true ]]; then
+		fail_menu "\nHardware write-protect enabled, cannot ${action}." || return 1
+	fi
+	if [[ "$spiPrProtect" = true ]]; then
+		fail_menu "\nIntel SPI protected ranges (PR0/GPR0) overlap the BIOS region, cannot ${action}.
+Disable hardware write-protect if it is still on, then reboot and try again." || return 1
+	fi
+	require_ti50_unverified_ro "$action" || return 1
+}
+
+# True if gsctool reports a Ti50 and AllowUnverifiedRo is not Always.
+# gsctool exists only on ChromeOS; after UEFI the GSC flag is already latched.
+function ti50_ro_verification_enabled() {
+	local gsc_info="" ro_line=""
+	command -v gsctool >/dev/null 2>&1 || return 1
+	gsc_info=$(gsctool -a -I 2>/dev/null) || return 1
+	ro_line=$(echo "$gsc_info" | grep -i AllowUnverifiedRo | head -1)
+	[[ -n "$ro_line" ]] || return 1
+	echo "$ro_line" | grep -qiE '\bAlways\b' && return 1
+	return 0
+}
+
+# Block SW WP / RO changes on Ti50 until AllowUnverifiedRo=always.
+# Args: <action description>
+function require_ti50_unverified_ro() {
+	local action="$1"
+	[[ "$ti50RoVerify" = true ]] || return 0
+	fail_menu "\nCannot ${action}: Ti50 RO verification is still on.
+
+Unlock the GSC, then set AllowUnverifiedRo=always:
+  sudo gsctool -a -o
+  sudo gsctool -a -I AllowUnverifiedRo:always
+Then press Power when asked.
+
+See https://docs.mrchromebox.tech/docs/firmware/wp/disabling.html#using-gsctool-no-suzyqable" || return 1
+}
+
 # Require clear_software_wp success; show fail_menu on disable/range errors.
 function require_software_wp_clear() {
 	local mode="$1"
@@ -110,6 +215,7 @@ function require_software_wp_clear() {
 	local range_msg="$3"
 	local _rc=0
 
+	require_ti50_unverified_ro "change software write-protect" || return 1
 	clear_software_wp "$mode" || _rc=$?
 	case $_rc in
 		1) fail_menu "$disable_msg" || return 1 ;;
@@ -615,7 +721,7 @@ function get_flashrom() {
 				if [[ "$isMusl" = true ]]; then
 					util_file="flashrom-musl.tar.gz"
 				else
-					util_file="flashrom_ups_int_20241214.tar.gz"
+					util_file="flashrom_ups_int_20260915.tar.gz"
 				fi
 			fi
 			if ! ${CURL} -sLo "flashrom.tar.gz" "${util_source}${util_file}"; then
@@ -868,6 +974,122 @@ Run this from a Linux Live USB instead."
 	# unload Intel SPI driver if loaded, causes issues with flashrom
 	run_quiet rmmod spi_intel_platform
 
+	# Secure Boot blocks flashrom reads on Intel; check before probing the chip
+	secureBoot=false
+	if efi_secure_boot_enabled; then
+		secureBoot=true
+	fi
+	diagnostic_report_set secureBoot "$secureBoot"
+	if [[ "$secureBoot" = true ]]; then
+		echo_yellow "\nWARNING: Secure Boot is enabled.\n
+Secure Boot prevents the OS (including this script) from accessing the firmware.
+Reboot, enter the firmware setup menu, disable Secure Boot, then run this script again."
+		read -rep "Press Y (then enter) to reboot now, or just press enter to exit. "
+		if [[ "$REPLY" =~ ^[Yy]$ ]]; then
+			echo_green "\nRebooting in 5s"
+			if ! reboot 2>/dev/null; then
+				systemctl reboot -i
+			fi
+			die
+		fi
+		exit 0
+	fi
+
+	# Probe only: further flashrom ops can hang if BIOS Lock / SMM protection is on
+	smmBiosProtect=false
+	smm_probe_out=$(run_capture ${flashromcmd})
+	if echo "$smm_probe_out" | grep -q "BIOS region SMM protection is enabled"; then
+		smmBiosProtect=true
+	fi
+	diagnostic_report_set smmBiosProtect "$smmBiosProtect"
+	if [[ "$smmBiosProtect" = true ]]; then
+		echo_yellow "\nWARNING: BIOS Lock is enabled.\n
+Firmware access from the OS (including this script) is blocked and may hang.
+Reboot, enter the firmware setup menu, disable BIOS Lock, then run this script again."
+		read -rep "Press Y (then enter) to reboot now, or just press enter to exit. "
+		if [[ "$REPLY" =~ ^[Yy]$ ]]; then
+			echo_green "\nRebooting in 5s"
+			if ! reboot 2>/dev/null; then
+				systemctl reboot -i
+			fi
+			die
+		fi
+		echo
+		exit 0
+	fi
+
+	spiPrProtect=false
+	if intel_pr_gpr_locked "$smm_probe_out"; then
+		spiPrProtect=true
+	fi
+	diagnostic_report_set spiPrProtect "$spiPrProtect"
+	if [[ "$spiPrProtect" = true ]]; then
+		echo_yellow "\nWARNING: Intel SPI protected ranges (PR0/GPR0) overlap the BIOS region.\n
+Firmware writes to the BIOS area will fail even if flash write-protect appears disabled.
+Disable hardware write-protect if it is still on, reboot, then run this script again."
+		read -rep "Press Y (then enter) to reboot now, or just press enter to skip and continue. "
+		if [[ "$REPLY" =~ ^[Yy]$ ]]; then
+			echo_green "\nRebooting in 5s"
+			if ! reboot 2>/dev/null; then
+				systemctl reboot -i
+			fi
+			die
+		fi
+	fi
+
+	#check WP state
+	echo -e "\nChecking WP state..."
+	wp_status_out=$(run_capture ${flashromcmd} --wp-status)
+	if echo "$wp_status_out" | grep -qiE 'enabled|protection mode: hardware'; then
+		swWp="enabled"
+	else
+		swWp="disabled"
+	fi
+	run_quiet ${flashromcmd} --wp-disable
+	[[ $? -ne 0 && $swWp = "enabled" ]] && wpEnabled=true
+	[[ ${swWp} = "enabled" ]] && run_quiet ${flashromcmd} --wp-enable
+	diagnostic_report_set wpEnabled "$wpEnabled"
+	diagnostic_report_set swWp "$swWp"
+
+	# Ti50 AP RO verification: gsctool is ChromeOS-only
+	ti50RoVerify=false
+	if [[ "$isChromeOS" = true ]]; then
+		if ! command -v gsctool >/dev/null 2>&1; then
+			echo_yellow "gsctool not found; skipping Ti50 AP RO verification check"
+		elif ti50_ro_verification_enabled; then
+			ti50RoVerify=true
+		fi
+	fi
+	diagnostic_report_set ti50RoVerify "$ti50RoVerify"
+	if [[ "$ti50RoVerify" = true ]]; then
+		echo_yellow "\nWARNING: Ti50 RO verification is still on (AllowUnverifiedRo is not Always).
+Do not disable software write-protect or flash Full ROM until you unlock the GSC and set AllowUnverifiedRo=always:
+  sudo gsctool -a -o
+  sudo gsctool -a -I AllowUnverifiedRo:always
+Then press Power when asked.
+See https://docs.mrchromebox.tech/docs/firmware/wp/disabling.html#using-gsctool-no-suzyqable"
+		read -rep "Press enter to continue. "
+	fi
+
+	# disable SW WP and reboot if needed
+	if [[ "$isChromeOS" = true && "${wpEnabled}" != "true" && "${swWp}" = "enabled" && "$ti50RoVerify" != true ]]; then
+		echo_yellow "\nWARNING: your device currently has software write-protect enabled.\n
+If you plan to flash the UEFI firmware, you must first disable it and reboot before flashing.
+Would you like to disable software WP and reboot your device?"
+		read -rep "Press Y (then enter) to disable software WP and reboot, or just press enter to skip and continue. "
+		if [[ "$REPLY" =~ ^[Yy]$ ]]; then
+			echo -e "\nDisabling software WP..."
+			require_software_wp_clear strict \
+				"\nError disabling software write-protect -- hardware WP is still enabled." \
+				"\nError clearing software write-protect range." || return
+			echo_green "\nSoftware WP disabled, rebooting in 5s"
+			if ! reboot 2>/dev/null; then
+				systemctl reboot -i
+			fi
+			die
+		fi
+	fi
+
 	#get device firmware info
 	echo -e "\nGetting device/system info..."
 	flashrom_params=""
@@ -912,8 +1134,6 @@ Run this from a Linux Live USB instead."
 		fi
 		echo_red "You may need to add 'iomem=relaxed' to your kernel parameters,
 or try running from a Live USB with a more permissive kernel (eg, Ubuntu 23.04+)."
-		echo_red "If you have UEFI SecureBoot enabled, you need to disable it to run 
-the script/update your firmware."
 		return 1;
 	fi
 
@@ -990,45 +1210,6 @@ or try running from a Live USB with a more permissive kernel (eg, Ubuntu 23.04+)
 
 	diagnostic_report_set firmwareType "$firmwareType"
 
-	#check WP status
-	echo -e "\nChecking WP state..."
-	#save SW WP state
-	wp_status_out=$(run_capture ${flashromcmd} --wp-status)
-	if echo "$wp_status_out" | grep -qiE 'enabled|protection mode: hardware'; then
-		swWp="enabled"
-	else
-		swWp="disabled"
-	fi
-	#test disabling SW WP to see if HW WP enabled
-	run_quiet ${flashromcmd} --wp-disable
-	[[ $? -ne 0 && $swWp = "enabled" ]] && wpEnabled=true
-	#restore previous SW WP state
-	[[ ${swWp} = "enabled" ]] && run_quiet ${flashromcmd} --wp-enable
-	diagnostic_report_set wpEnabled "$wpEnabled"
-	diagnostic_report_set swWp "$swWp"
-
-	# disable SW WP and reboot if needed
-	if [[ "$isChromeOS" = true &&  "${wpEnabled}" != "true" &&  "${swWp}" = "enabled" ]]; then
-		# prompt user to disable swWP and reboot
-		echo_yellow "\nWARNING: your device currently has software write-protect enabled.\n
-If you plan to flash the UEFI firmware, you must first disable it and reboot before flashing.
-Would you like to disable software WP and reboot your device?"
-		read -rep "Press Y (then enter) to disable software WP and reboot, or just press enter to skip and continue. "
-		# Validate user input
-		if [[ "$REPLY" =~ ^[Yy]$ ]]; then
-			echo -e "\nDisabling software WP..."
-			require_software_wp_clear strict \
-				"\nError disabling software write-protect -- hardware WP is still enabled." \
-				"\nError clearing software write-protect range." || return
-			echo_green "\nSoftware WP disabled, rebooting in 5s"
-			if ! reboot 2>/dev/null; then
-				systemctl reboot -i
-			fi
-			# ensure we don't show the main menu while the system processes the reboot signal
-			die
-		fi
-	fi
-	
 	# Get/set HWID, boardname, device
 	if echo "$firmwareType" | grep -q -e "Stock"; then
 		if [[ "$isChromeOS" = true && ! -d /sys/firmware/efi ]]; then

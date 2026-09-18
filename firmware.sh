@@ -194,10 +194,7 @@ function flash_full_rom()
 	local slot_label=""
 
 	# ensure hardware write protect disabled
-	if [[ "$wpEnabled" = true ]]; then
-		fail_menu "\nHardware write-protect enabled, cannot flash Full ROM firmware."
-		return
-	fi
+	require_host_flash_access "flash Full ROM firmware" || return
 
 	if [[ "$slot" != "latest" && "$slot" != "previous" ]]; then
 		fail_menu "Invalid firmware release slot: ${slot}" || return
@@ -601,10 +598,7 @@ the touchpad firmware, otherwise the touchpad will not work."
 		read -rep "Do you wish to downgrade the touchpad firmware now? [y/N] "
 		if [[ "$REPLY" = "y" || "$REPLY" = "Y" ]] ; then
 			# ensure firmware write protect disabled
-			if [[ "$wpEnabled" = true ]]; then
-				fail_menu "\nHardware write-protect enabled, cannot downgrade touchpad firmware."
-				return
-			fi
+			require_host_flash_access "downgrade touchpad firmware" || return
 			# download TP firmware
 			echo_yellow "\nDownloading touchpad firmware\n(${touchpad_eve_fw})"
 			
@@ -677,10 +671,7 @@ the touchpad firmware, otherwise the touchpad will not work."
 		read -rep "Do you wish to upgrade the touchpad firmware now? [y/N] "
 		if [[ "$REPLY" = "y" || "$REPLY" = "Y" ]] ; then
 			# ensure firmware write protect disabled
-			if [[ "$wpEnabled" = true ]]; then
-				fail_menu "\nHardware write-protect enabled, cannot upgrade touchpad firmware."
-				return
-			fi
+			require_host_flash_access "upgrade touchpad firmware" || return
 			# download TP firmware
 			echo_yellow "\nDownloading touchpad firmware\n(${touchpad_eve_fw_stock})"
 			
@@ -748,10 +739,7 @@ function flash_custom_firmware()
 {
 	log_fn
 	# ensure hardware write protect disabled
-	if [[ "$wpEnabled" = true ]]; then
-		fail_menu "\nHardware write-protect enabled, cannot flash custom firmware."
-		return
-	fi
+	require_host_flash_access "flash custom firmware" || return
 
 	echo_green "\nFlash Custom Firmware Image"
 	echo_yellow "IMPORTANT: flashing custom firmware has the potential to brick your device,
@@ -960,6 +948,42 @@ Be patient and eventually your device will boot :)"
 	read -rep "Press [Enter] to return to the main menu."
 }
 
+# Returns 0 if the image looks like stock ChromeOS firmware.
+# Stock images have a GBB, either FW_MAIN_A (vboot A/B) or BOOT_STUB (legacy),
+# and an official RO_FRID (Google_<board>.<N>.<N>.<N>). Some stock AMD/Intel
+# images include SMMSTORE, and some older custom ROMs keep a leftover ChromeOS
+# FMAP with a Google_ FRID that uses a git-style version — reject those.
+function is_stock_firmware_image()
+{
+	local img="$1"
+	local layout_file="/tmp/stock-check-layout"
+	local frid_file="/tmp/stock-check-frid"
+	local frid=""
+
+	[[ -n "$img" && -f "$img" ]] || return 1
+
+	rm -f "$layout_file" "$frid_file"
+	if ! ${cbfstoolcmd} "$img" layout -w > "$layout_file" 2>/dev/null; then
+		return 1
+	fi
+
+	# Stock ChromeOS firmware has a GBB and either RW A/B slots or legacy BOOT_STUB
+	grep -q "'GBB'" "$layout_file" || return 1
+	if ! grep -q "'FW_MAIN_A'" "$layout_file" && ! grep -q "'BOOT_STUB'" "$layout_file"; then
+		return 1
+	fi
+
+	# Official RO_FRID is Google_<board>.<major>.<minor>.<tiny>[, optional _d... suffix]
+	grep -q "'RO_FRID'" "$layout_file" || return 1
+	if ! run_quiet ${cbfstoolcmd} "$img" read -r RO_FRID -f "$frid_file"; then
+		return 1
+	fi
+	frid=$(tr -d '\0' < "$frid_file")
+	echo "$frid" | grep -qxE 'Google_[A-Za-z0-9_]+(\.[0-9]+){3}(_.*)?' || return 1
+
+	return 0
+}
+
 ########################
 # Restore Stock Firmware #
 ##########################
@@ -986,15 +1010,12 @@ other than the latest UEFI Full ROM firmware release."
 		#spacing
 		echo -e ""
 		# ensure hardware write protect disabled
-		if [[ "$wpEnabled" = true ]]; then
-			fail_menu "\nHardware write-protect enabled, cannot restore stock firmware."
-			return
-		fi
+		require_host_flash_access "restore stock firmware" || return
 		# default file to download to
 		firmware_file="/tmp/stock-firmware.rom"
 		echo -e ""
 		echo_yellow "Please select an option below for restoring the stock firmware:"
-		echo -e "1) Restore using a firmware backup on USB"
+		echo -e "1) Restore using a stock firmware backup on USB"
 		echo -e "2) Restore using a ChromeOS Recovery USB"
 		echo -e "Q) Quit and return to main menu"
 		echo -e ""
@@ -1015,6 +1036,12 @@ other than the latest UEFI Full ROM firmware release."
 			esac
 		done
 		[[ "$restore_option" = "Q" ]] && return
+		echo_yellow "Verifying that the image is stock ChromeOS firmware"
+		if ! is_stock_firmware_image "${firmware_file}"; then
+			fail_menu "The selected file does not appear to be stock ChromeOS firmware.
+To flash a custom ROM, use the Flash Custom Firmware option instead." || return
+		fi
+		echo_yellow "Verified stock firmware: $(tr -d '\0' < /tmp/stock-check-frid)"
 		if [[ $restore_option -eq 2 ]]; then
 			#extract VPD from current firmware if present
 			if extract_vpd /tmp/bios.bin ; then
@@ -1393,10 +1420,7 @@ function set_boot_options()
 	# set boot options via firmware boot flags
 
 	# ensure hardware write protect disabled
-	if [[ "$wpEnabled" = true ]]; then
-		fail_menu "\nHardware write-protect enabled, cannot set Boot Options / GBB Flags."
-		return
-	fi
+	require_host_flash_access "set Boot Options / GBB Flags" || return
 
 	echo_green "\nSet Firmware Boot Options (GBB Flags)"
 	echo_yellow "Select your preferred boot delay and default boot option.
@@ -1454,10 +1478,7 @@ function set_hwid()
 	log_fn
 	# set HWID using gbb_utility
 	# ensure hardware write protect disabled
-	if [[ "$wpEnabled" = true ]]; then
-		fail_menu "\nHardware write-protect enabled, cannot set HWID."
-		return
-	fi
+	require_host_flash_access "set HWID" || return
 
 	echo_green "Set Hardware ID (HWID) using gbb_utility"
 
@@ -1510,12 +1531,8 @@ Proceed at your own risk."
 function set_hwid_uefi()
 {
 	log_fn
-	# set HWID using cbfstool for UEFI firmware
 	# ensure hardware write protect disabled
-	if [[ "$wpEnabled" = true ]]; then
-		fail_menu "\nHardware write-protect enabled, cannot set HWID."
-		return
-	fi
+	require_host_flash_access "set HWID" || return
 
 	echo_green "\nSet Hardware ID (HWID) for UEFI Firmware"
 
@@ -1603,6 +1620,7 @@ function clear_nvram()
 
 	read -rep "Would you like to continue? [y/N] "
 	[[ "$REPLY" = "y" || "$REPLY" = "Y" ]] || return
+	require_smm_writes_allowed "clear UEFI NVRAM" || return
 
 	echo_yellow "\nClearing NVRAM..."
 	if ! run_flashrom ${flashromcmd} -E -i SMMSTORE --fmap; then
@@ -1744,6 +1762,22 @@ function show_header() {
 	else
 		echo -e "${MENU}**${NUMBER}      Fw WP: ${NORMAL}Disabled"
 		WP_TEXT=${GREEN_TEXT}
+	fi
+	if [ "$smmBiosProtect" = true ]; then
+		echo -e "${MENU}**${NUMBER}  BIOS Lock: ${RED_TEXT}Enabled${NORMAL}"
+		WP_TEXT=${RED_TEXT}
+	fi
+	if [ "$spiPrProtect" = true ]; then
+		echo -e "${MENU}**${NUMBER}PR0/GPR0 WP: ${RED_TEXT}Enabled${NORMAL}"
+		WP_TEXT=${RED_TEXT}
+	fi
+	if [ "$secureBoot" = true ]; then
+		echo -e "${MENU}**${NUMBER}Secure Boot: ${RED_TEXT}Enabled${NORMAL}"
+		WP_TEXT=${RED_TEXT}
+	fi
+	if [ "$ti50RoVerify" = true ]; then
+		echo -e "${MENU}**${NUMBER}  AP RO Ver: ${RED_TEXT}Enabled${NORMAL}"
+		WP_TEXT=${RED_TEXT}
 	fi
 	echo -e "${MENU}*********************************************************${NORMAL}"
 }
